@@ -152,7 +152,7 @@ class MetaP(nn.Module):
                         temp_score += torch.norm(query[i][j] - self.proto[t],2,-1)
                 score[i][j] = - temp_score / (len(self.proto)-1)
 
-        return score
+        return score.cuda()
 
     def forward(self, task, iseval=False, curr_rel="", select=False, use_conv=False):
         # transfer task string into embedding
