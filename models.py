@@ -80,6 +80,7 @@ class PatternMatcher(nn.Module):
     def forward(self, query, support):
         batch_size, num_query, dim = query.size()
         support = support.expand(-1, num_query, -1)
+        # 计算第二范式
         scores = -torch.norm(query - support, 2, -1)
         return scores
 
@@ -108,10 +109,13 @@ class MetaP(nn.Module):
 
         self.sup_pat = dict()
         self.qry_pat = dict()
+        self.proto = dict()
+
         for key in self.train_rel_dic.keys():
             rel = self.train_rel_dic[key]
             self.sup_pat[rel] = []
             self.qry_pat[rel] = []
+            # self.proto[rel] = []
 
     def split_concat(self, positive, negative):
         pos_neg_e1 = torch.cat(
@@ -136,12 +140,27 @@ class MetaP(nn.Module):
             relation = torch.mean(relation, dim=1, keepdim=True)
         return relation
 
+    def relation_score(self,query,iseval = False):
+        #(qry, spt_pos)
+        batch_size, num_query, dim = query.size()
+        score = torch.zeros(batch_size,num_query)
+        for i in range(batch_size):
+            for j in range(num_query):
+                temp_score = 0
+                for t in range(len(self.proto)):
+                    if t!= i:
+                        temp_score += torch.norm(query[i][j] - self.proto[t],2,-1)
+                score[i][j] = - temp_score / (len(self.proto)-1)
+
+        return score
+
     def forward(self, task, iseval=False, curr_rel="", select=False, use_conv=False):
         # transfer task string into embedding
         support, support_negative, query, negative = [self.embedding(t) for t in task]
+
         few = support.shape[1]  # num of few
         num_sn = support_negative.shape[1]  # num of negative support
-        num_q = query.shape[1]  # num of positeve query
+        num_q = query.shape[1]  # num of positive query
         num_n = negative.shape[1]  # num of negative query
         pos_relation = self.get_relation(support, mean=True)
         support = self.concat_relation(support, pos_relation)
@@ -159,6 +178,7 @@ class MetaP(nn.Module):
                 temp = torch.cat((spt_pos[i],spt_neg[i]),0)
                 self.sup_pat[rel] = temp
                 self.qry_pat[rel] = qry[i]
+                self.proto[i] = torch.mean(spt_pos[i], dim=0, keepdim=True)
 
         if self.aggregator == "attn":
             qry_spt_pos_score = self.attn_matcher(qry, spt_pos)
@@ -173,11 +193,22 @@ class MetaP(nn.Module):
             spt_neg = torch.mean(spt_neg, dim=1, keepdim=True)
             qry_spt_pos_score = self.pattern_matcher(qry, spt_pos)
             qry_spt_neg_score = self.pattern_matcher(qry, spt_neg)
+        elif self.aggregator == "relation":
+            spt_pos = torch.mean(spt_pos, dim=1, keepdim=True)
+            spt_neg = torch.mean(spt_neg, dim=1, keepdim=True)
+            qry_spt_pos_score = self.pattern_matcher(qry, spt_pos)
+            qry_spt_neg_score = self.pattern_matcher(qry, spt_neg)
+            relation_score  = self.relation_score(qry,iseval)
+
+ 
         score = torch.stack((qry_spt_pos_score, qry_spt_neg_score), dim=-1)
         y_query = torch.ones((score.shape[0], score.shape[1]), dtype=torch.long)
         y_query[:, :num_q] = 0
         if self.vbm:
-            delta = qry_spt_pos_score - qry_spt_neg_score
+            if self.aggregator == "relation":
+                delta = qry_spt_pos_score - qry_spt_neg_score - 0.3 * relation_score
+            else:
+                delta = qry_spt_pos_score - qry_spt_neg_score
         else:
             delta = qry_spt_pos_score
         p_score = delta[:, :num_q]
