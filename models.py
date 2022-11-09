@@ -111,6 +111,7 @@ class MetaP(nn.Module):
         self.rum = parameter["rum"]
         self.vbm = parameter["vbm"]
         self.beta = parameter["beta"]
+        self.margin = parameter["margin"]
 
         self.input_channels = 2 if self.rum else 1
         self.aggregator = parameter["aggregator"]
@@ -216,6 +217,14 @@ class MetaP(nn.Module):
             qry_spt_neg_score = self.pattern_matcher(qry, spt_neg)
             relation_score  = self.relation_score(qry,iseval)
 
+        pos_score = self.pattern_matcher(qry[:,:num_q], spt_pos)
+        neg_score = self.pattern_matcher(qry[:,:num_q], spt_neg)
+        pos = torch.mean(pos_score, dim=1)
+        neg = torch.mean(neg_score, dim=1)
+        pos_ = torch.mean(pos, dim=0)
+        neg_ = torch.mean(neg, dim=0)
+        delta_loss = max(0, pos_ - neg_ + self.margin)
+        
         score = torch.stack((qry_spt_pos_score, qry_spt_neg_score), dim=-1)
         y_query = torch.ones((score.shape[0], score.shape[1]), dtype=torch.long)
         y_query[:, :num_q] = 0
@@ -226,9 +235,6 @@ class MetaP(nn.Module):
                 delta = qry_spt_pos_score - self.beta * qry_spt_neg_score
         else:
             delta = qry_spt_pos_score
-
-        delta_ = torch.mean(delta[:,:num_q], dim=1)
-        delta_loss = torch.mean(delta_)
 
         p_score = delta[:, :num_q]
         n_score = delta[:, num_q:]
