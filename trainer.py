@@ -160,12 +160,12 @@ class Trainer:
         if not iseval:
             self.optimizer.zero_grad()
             score, y_query, p_score, n_score, delta_loss = self.metaP(task, iseval, curr_rel)
-            loss = self.metaP.criterion(score, y_query) - self.gamma * delta_loss
+            loss = self.metaP.criterion(score, y_query) + self.gamma * delta_loss
             loss.backward()
             self.optimizer.step()
         elif curr_rel != "":
             score, y_query, p_score, n_score, delta_loss = self.metaP(task, iseval, curr_rel)
-            loss = self.metaP.criterion(score, y_query) - self.gamma * delta_loss
+            loss = self.metaP.criterion(score, y_query) + self.gamma * delta_loss
         return loss, p_score, n_score
 
     def train(self):
