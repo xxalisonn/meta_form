@@ -28,6 +28,7 @@ def get_params():
     args.add_argument("-lr", "--learning_rate", default=0.001, type=float)
     args.add_argument("--beta", default=1, type=float)
     args.add_argument("--gamma", default=0.5, type=float)
+    args.add_argument("--margin", default=2, type=float)
     args.add_argument("-es_p", "--early_stopping_patience", default=3, type=int)
 
     args.add_argument("-epo", "--epoch", default=10000, type=int) 
