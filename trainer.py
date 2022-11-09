@@ -21,6 +21,7 @@ class Trainer:
         self.batch_size = parameter["batch_size"]
         self.learning_rate = parameter["learning_rate"]
         self.early_stopping_patience = parameter["early_stopping_patience"]
+        self.gamma = parameter["gamma"]
         # epoch
         self.epoch = parameter["epoch"]
         self.print_epoch = parameter["print_epoch"]
@@ -158,13 +159,13 @@ class Trainer:
         loss, p_score, n_score = 0, 0, 0
         if not iseval:
             self.optimizer.zero_grad()
-            score, y_query, p_score, n_score = self.metaP(task, iseval, curr_rel)
-            loss = self.metaP.criterion(score, y_query)
+            score, y_query, p_score, n_score, delta_loss = self.metaP(task, iseval, curr_rel)
+            loss = self.metaP.criterion(score, y_query) - self.gamma * delta_loss
             loss.backward()
             self.optimizer.step()
         elif curr_rel != "":
-            score, y_query, p_score, n_score = self.metaP(task, iseval, curr_rel)
-            loss = self.metaP.criterion(score, y_query)
+            score, y_query, p_score, n_score, delta_loss = self.metaP(task, iseval, curr_rel)
+            loss = self.metaP.criterion(score, y_query) - self.gamma * delta_loss
         return loss, p_score, n_score
 
     def train(self):
@@ -189,10 +190,10 @@ class Trainer:
             if e % self.checkpoint_epoch == 0 and e != 0:
                 print("Epoch  {} has finished, saving...".format(e))
                 self.save_checkpoint(e)
-                sup = self.metaP.sup_pat
-                qry = self.metaP.qry_pat
-                save_tensor(sup,'sup'+str(e))
-                save_tensor(qry,'qry'+str(e))
+#                 sup = self.metaP.sup_pat
+#                 qry = self.metaP.qry_pat
+#                 save_tensor(sup,'sup'+str(e))
+#                 save_tensor(qry,'qry'+str(e))
             # do evaluation on specific epoch
             if e % self.eval_epoch == 0 and e != 0:
                 print("Epoch  {} has finished, validating...".format(e))
