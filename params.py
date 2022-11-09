@@ -55,7 +55,7 @@ def get_params():
         "-aggregator",
         "--aggregator",
         default="max",
-        choices=["max", "mean", "attn"],
+        choices=["max", "mean", "attn", "relation"],
         type=str,
     )
     args.set_defaults(rum=True, vbm=True)
