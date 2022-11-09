@@ -26,6 +26,7 @@ def get_params():
     args.add_argument("-dim", "--embed_dim", default=100, type=int)
     args.add_argument("-bs", "--batch_size", default=51, type=int)
     args.add_argument("-lr", "--learning_rate", default=0.001, type=float)
+    args.add_argument("--beta", default=1, type=float)
     args.add_argument("-es_p", "--early_stopping_patience", default=3, type=int)
 
     args.add_argument("-epo", "--epoch", default=10000, type=int) 
