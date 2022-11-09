@@ -97,6 +97,7 @@ class MetaP(nn.Module):
         self.few = parameter["few"]
         self.rum = parameter["rum"]
         self.vbm = parameter["vbm"]
+        self.beta = parameter["beta"]
 
         self.input_channels = 2 if self.rum else 1
         self.aggregator = parameter["aggregator"]
@@ -208,7 +209,7 @@ class MetaP(nn.Module):
             if self.aggregator == "relation":
                 delta = qry_spt_pos_score - qry_spt_neg_score - 0.3 * relation_score
             else:
-                delta = qry_spt_pos_score - qry_spt_neg_score
+                delta = qry_spt_pos_score - self.beta * qry_spt_neg_score
         else:
             delta = qry_spt_pos_score
         p_score = delta[:, :num_q]
