@@ -84,6 +84,19 @@ class PatternMatcher(nn.Module):
         scores = -torch.norm(query - support, 2, -1)
         return scores
 
+class ProtoMatcher(nn.Module):
+    def __init__(self):
+        super(ProtoMatcher, self).__init__()
+
+    def forward(self, query,proto):
+        batch_size, num_query, dim = query.size()
+        proto_ = torch.stack(proto,0)
+        support = proto_.expand(-1, num_query, -1)
+        print(proto_.size(),support.size())
+        # 计算第二范式
+        scores = -torch.norm(query - support, 2, -1)
+        return scores
+
 
 class MetaP(nn.Module):
     def __init__(self, dataset, parameter):
@@ -107,16 +120,17 @@ class MetaP(nn.Module):
         self.criterion = nn.CrossEntropyLoss()
         self.dim = parameter["embed_dim"]
         self.attn_matcher = AttentionMatcher()
+        self.proto_matcher = ProtoMatcher()
 
         self.sup_pat = dict()
         self.qry_pat = dict()
-        self.proto = dict()
+        self.proto = list()
 
         for key in self.train_rel_dic.keys():
             rel = self.train_rel_dic[key]
             self.sup_pat[rel] = []
             self.qry_pat[rel] = []
-            # self.proto[rel] = []
+            self.proto.append([])
 
     def split_concat(self, positive, negative):
         pos_neg_e1 = torch.cat(
@@ -142,7 +156,6 @@ class MetaP(nn.Module):
         return relation
 
     def relation_score(self,query,iseval = False):
-        #(qry, spt_pos)
         batch_size, num_query, dim = query.size()
         score = torch.zeros(batch_size,num_query).cuda()
         for i in range(batch_size):
@@ -197,11 +210,12 @@ class MetaP(nn.Module):
         elif self.aggregator == "relation":
             spt_pos = torch.mean(spt_pos, dim=1, keepdim=True)
             spt_neg = torch.mean(spt_neg, dim=1, keepdim=True)
+            rel_score = self.proto_matcher(qry,self.proto)
             qry_spt_pos_score = self.pattern_matcher(qry, spt_pos)
+            print(rel_score.size(),qry_spt_pos_score.size(),qry.size())
             qry_spt_neg_score = self.pattern_matcher(qry, spt_neg)
             relation_score  = self.relation_score(qry,iseval)
 
- 
         score = torch.stack((qry_spt_pos_score, qry_spt_neg_score), dim=-1)
         y_query = torch.ones((score.shape[0], score.shape[1]), dtype=torch.long)
         y_query[:, :num_q] = 0
@@ -212,6 +226,10 @@ class MetaP(nn.Module):
                 delta = qry_spt_pos_score - self.beta * qry_spt_neg_score
         else:
             delta = qry_spt_pos_score
+
+        delta_ = torch.mean(delta[:,:num_q], dim=1)
+        delta_loss = torch.mean(delta_)
+
         p_score = delta[:, :num_q]
         n_score = delta[:, num_q:]
-        return score.view(-1, 2), y_query.view(-1).to(self.device), p_score, n_score
+        return score.view(-1, 2), y_query.view(-1).to(self.device), p_score, n_score, delta_loss
